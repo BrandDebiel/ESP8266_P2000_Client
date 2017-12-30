@@ -2,11 +2,12 @@
 
 P2000WifiClient::P2000WifiClient()
 {
-
+	messageCounter = 0;
 }
 
 P2000WifiClient::~P2000WifiClient()
 {
+
 }
 
 bool P2000WifiClient::begin(char* ssid, char* password, char* host, uint16_t port)
@@ -32,11 +33,28 @@ bool P2000WifiClient::begin(char* ssid, char* password, char* host, uint16_t por
 	Serial.println(WiFi.localIP());
 }
 
-void P2000WifiClient::getData(String& string)
+void P2000WifiClient::getData(char* receiveBuffer)
 {
 	if(tcpClient.available())
 	{
-		string = tcpClient.readStringUntil('\n');
+		if (m_receiveBufferPayloadSize == 0)
+		{
+			char bufferIn[4];			
+			tcpClient.readBytes(bufferIn, 4);
+			memcpy(&m_receiveBufferPayloadSize, bufferIn, sizeof m_receiveBufferPayloadSize);
+		}
+		else
+		{
+			tcpClient.readBytes(receiveBuffer, m_receiveBufferPayloadSize);
+			//tcpClient.readBytesUntil('\n', receiveBuffer, m_receiveBufferPayloadSize);	
+			Serial.print("<<Payloadsize: "); 
+			Serial.println(m_receiveBufferPayloadSize);
+			Serial.print("<<Payload: ");  
+			Serial.print(messageCounter++);
+			Serial.print(" - ");
+			Serial.println(receiveBuffer);
+			m_receiveBufferPayloadSize = 0;
+		}		
 	}
 }
 
@@ -74,4 +92,30 @@ bool P2000WifiClient::connect()
 	{
 		return(true);
 	}
+}
+
+void P2000WifiClient::disconnect()
+{
+	tcpClient.stop();
+	Serial.println("Connection stopped");
+}
+
+void P2000WifiClient::sendData(char* sendBuffer)
+{	
+	uint32_t payload = strlen(sendBuffer);
+	char payloadSize[4];
+	sprintf(payloadSize, "%lu", payload);
+
+	tcpClient.write((const uint8_t *)payloadSize, 4);
+	tcpClient.write((const uint8_t *)sendBuffer, payload);
+	Serial.print(">>Payloadsize: ");
+	Serial.println(payloadSize); 
+	Serial.print(">>Payload: ");
+	Serial.println(sendBuffer);
+
+}
+
+bool P2000WifiClient::connected()
+{
+	return(connect());
 }
